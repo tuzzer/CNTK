@@ -644,12 +644,19 @@ template class TransposeTimesNode<double>;
 // preppedA: If not null and its contents is null, allocate a matrix (which
 // must be freed using FreeQuantizedMatrix), and populate it with a scaled 
 // version. In this case, the contents of preppedScaleA is also populated.
-template <class ElemType, bool m_transpose>
-class QuantizedBlockTimesNode : public TimesNodeBase<ElemType, m_transpose>
+template <class ElemType>
+class QuantizedTimesNode : public TimesNodeBase<ElemType, false>
 {
-    typedef TimesNodeBase<ElemType, m_transpose> Base; 
+    typedef TimesNodeBase<ElemType, false> Base;
     UsingComputationNodeMembersBoilerplate;
-    static const std::wstring TypeName() { return L"QuantizedBlockTimes"; }
+    static const std::wstring TypeName()
+    {
+        return L"QuantizedTimes";
+    }
+
+public:
+    //DeclareConstructorFromConfigWithNumInputs(QuantizedTimesNode);
+
     int16_t* m_preparedA = nullptr;
     ElemType m_scaleA;
     bool m_reuseA;
@@ -664,18 +671,24 @@ class QuantizedBlockTimesNode : public TimesNodeBase<ElemType, m_transpose>
     int m_m, m_l, m_k;
 
 public:
-    QuantizedBlockTimesNode(DEVICEID_TYPE deviceId, const wstring& name, size_t outputRank = 1)
-        : Base(deviceId, name, outputRank)
+    QuantizedTimesNode(DEVICEID_TYPE deviceId, const wstring& name, size_t outputRank = 1, int inferInputRankToMap = -1)
+        : Base(deviceId, name, outputRank, inferInputRankToMap)
     {
         if (deviceId != CPUDEVICE)
             LogicError("Quantized operation is supposed to be used on CPU device only.");
         m_firstPass = true;
     }
 
-    QuantizedBlockTimesNode(const QuantizedBlockTimesNode& node) : Base(node.GetDeviceId(), node.NodeName(), node.OutputRank())
+    QuantizedTimesNode(const ScriptableObjects::IConfigRecordPtr configp)
+        : QuantizedTimesNode(configp->Get(L"deviceId"), L"<placeholder>", configp->Get(L"outputRank"), configp->Get(L"inferInputRankToMap"))
     {
-        LogicError("TODO: Copy ctor for the QuantizedBlockTimesNode");
+        AttachInputsFromConfig(configp, this->GetExpectedNumInputs());
     }
+
+    //QuantizedTimesNode(const QuantizedTimesNode& node) : QuantizedTimesNode(node.GetDeviceId(), node.NodeName(), node.GetOutputRank(), node.InferInputRankToMap())
+    //{
+    //    LogicError("TODO: Copy ctor for the QuantizedTimesNode");
+    //}
 
     virtual void /*ComputationNode::*/ ForwardProp(const FrameRange& fr) override
     {
@@ -758,7 +771,7 @@ public:
         // m_reuseA = Input(0)->ValueIsConst();
     }
 
-    virtual ~QuantizedBlockTimesNode()
+    virtual ~QuantizedTimesNode()
     {
         if (m_preparedA != nullptr)
         {
@@ -775,10 +788,8 @@ private:
 
 };
 
-template class QuantizedBlockTimesNode<float, false>;
-template class QuantizedBlockTimesNode<float, true>;
-template class QuantizedBlockTimesNode<double, false>;
-template class QuantizedBlockTimesNode<double, true>;
+template class QuantizedTimesNode<float>;
+template class QuantizedTimesNode<double>;
 
 // -----------------------------------------------------------------------
 // SumElementsNode (input)
